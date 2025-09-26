@@ -356,7 +356,7 @@ module Lipdub
           start_seconds = parse_timecode_to_seconds(start_time, fps: fps)
           end_seconds = parse_timecode_to_seconds(end_time, fps: fps)
           
-          buffered_start = [start_seconds - buffer_seconds, 0].max
+          buffered_start = [start_seconds - buffer_seconds, 0.0].max
           buffered_end = end_seconds + buffer_seconds
           
           if video_duration

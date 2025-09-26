@@ -347,7 +347,9 @@ projects = client.projects.list(page: 1, per_page: 20)
 # }
 ```
 
-### Complete Workflow Example
+### Complete Workflow Examples
+
+#### Basic Lip-dubbing Workflow
 
 Here's a complete example that uploads a video and audio, generates a lip-dubbed video, and downloads the result:
 
@@ -406,6 +408,108 @@ begin
     "output/final_dubbed_video.mp4"
   )
   puts "Video downloaded to: #{output_path}"
+```
+
+#### Selective Lip-dubbing Workflow
+
+Here's an example showing how to use selective lip-dubbing for personalization (e.g., replacing just a name in a greeting):
+
+```ruby
+require 'lipdub'
+
+# Configure the client
+Lipdub.configure do |config|
+  config.api_key = "your_api_key_here"
+end
+
+client = Lipdub.client
+
+begin
+  # 1. Upload original video (done once)
+  video_response = client.videos.upload_complete(
+    file_path: "./original_greeting.mp4",
+    content_type: "video/mp4"
+  )
+  video_id = video_response.dig("data", "video_id")
+
+  # 2. Upload personalized audio (replace original audio with new name)
+  # NOTE: Audio duration must match the video duration exactly
+  personalized_audio = client.audios.upload_complete(
+    file_path: "./personalized_greeting_audio.mp3", # Contains new name
+    content_type: "audio/mp3"
+  )
+  audio_id = personalized_audio.dig("data", "audio_id")
+
+  # 3. Wait for video processing and get shot_id
+  loop do
+    status = client.videos.status(video_id: video_id)
+    if status.dig("data", "status") == "success"
+      shot_id = status.dig("data", "shot_id")
+      break
+    elsif status.dig("data", "status") == "failed"
+      raise "Video processing failed"
+    end
+    sleep 5
+  end
+
+  # 4. Define timecode ranges for selective replacement
+  # Example: Replace name at 2.5-4.2 seconds with 10-frame buffer
+  name_start = 2.5
+  name_end = 4.2
+
+  # Use helper method to add frame buffer (recommended)
+  timecode_ranges = client.shots.add_frame_buffer(
+    [[name_start, name_end]], 
+    buffer_frames: 10, 
+    fps: 30
+  )
+
+  # Validate ranges (optional but recommended)
+  client.shots.validate_timecode_ranges(
+    timecode_ranges, 
+    video_duration: 30.0 # Your video duration
+  )
+
+  # 5. Generate selective lip-dub
+  generation = client.shots.generate(
+    shot_id: shot_id,
+    audio_id: audio_id,
+    output_filename: "personalized_greeting.mp4",
+    timecode_ranges: timecode_ranges, # Only lip-dub the name part
+    language: "en-US"
+  )
+
+  generate_id = generation["generate_id"]
+
+  # 6. Wait for generation to complete and download
+  client.shots.download_file(
+    shot_id,
+    generate_id,
+    "output/personalized_greeting.mp4"
+  )
+
+  puts "Personalized video with selective lip-dubbing saved!"
+
+  # Alternative: Multiple selective ranges (e.g., name + closing)
+  multiple_ranges = [
+    [2.5, 4.2],   # Name replacement
+    [25.0, 27.5]  # Closing replacement
+  ]
+
+  buffered_ranges = client.shots.add_frame_buffer(
+    multiple_ranges,
+    buffer_frames: 10,
+    fps: 30,
+    video_duration: 30.0
+  )
+
+  # Generate with multiple selective ranges
+  multi_selective = client.shots.generate(
+    shot_id: shot_id,
+    audio_id: audio_id,
+    output_filename: "multi_personalized.mp4",
+    timecode_ranges: buffered_ranges
+  )
 
 rescue Lipdub::AuthenticationError => e
   puts "Authentication failed: #{e.message}"

@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shot translation endpoint (`POST /v1/shots/{shot_id}/translate`)
 - Multi-actor generation endpoint (`POST /v1/shots/{shot_id}/generate-multi-actor`)
 - Enhanced shot generation with new parameters (start_frame, loop_video, full_resolution, callback_url, timecode_ranges)
+- Selective lip-dubbing functionality with timecode range validation and helper methods
+- Comprehensive timecode handling (numeric seconds and SMPTE format)
+- Frame buffer utility for seamless selective lip-dubbing transitions
 
 ### Fixed
 - RSpec test compatibility issues with WebMock
@@ -26,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Enhanced documentation with CI and security audit information
 - Updated contributing guidelines to include security audit step
+- Added comprehensive selective lip-dubbing workflow examples and best practices
+- Expanded README with detailed timecode usage examples
 
 ## [0.1.0] - 2025-09-26
 
