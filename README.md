@@ -205,6 +205,50 @@ generate_response = client.shots.generate(
 generate_id = generate_response["generate_id"]
 ```
 
+#### Selective Lip-dubbing for Single Actors
+
+For scenarios where you only want to lip-dub specific parts of a video (e.g., personalization where only a name needs to be replaced), you can use selective lip-dubbing with `timecode_ranges`:
+
+```ruby
+# Basic selective lip-dubbing with time ranges in seconds
+response = client.shots.generate(
+  shot_id: 123,
+  audio_id: "audio_abc123",
+  output_filename: "personalized_video.mp4",
+  timecode_ranges: [[0, 10], [20, 30]] # Replace seconds 0-10 and 20-30
+)
+
+# With SMPTE timecode format (be consistent with format)
+response = client.shots.generate(
+  shot_id: 123,
+  audio_id: "audio_abc123", 
+  output_filename: "personalized_video.mp4",
+  timecode_ranges: [["00:00:00:00", "00:00:10:00"], ["00:00:20:00", "00:00:30:00"]]
+)
+
+# Example: Replace a name greeting with proper buffering
+# Calculate 10-frame buffer (assuming 30fps: 10/30 = 0.33 seconds)
+name_start = 2.5 - 0.33  # Start 10 frames before
+name_end = 4.2 + 0.33    # End 10 frames after
+
+response = client.shots.generate(
+  shot_id: 123,
+  audio_id: "audio_with_new_name",
+  output_filename: "personalized_greeting.mp4", 
+  timecode_ranges: [[name_start, name_end]],
+  language: "en-US"
+)
+```
+
+##### Best Practices for Selective Lip-dubbing
+
+1. **Match Original Region Length**: Ensure replaced audio regions match the original region length to maintain sync
+2. **Add Frame Buffer**: Include a 10-frame buffer around start/end timecodes for seamless blending  
+3. **Normalize Audio**: Normalize audio levels and isolate vocals from background noise for best results
+4. **Audio Duration**: The total audio duration must match the video duration
+5. **Consistent Timecode Format**: Use either seconds (float) or SMPTE format consistently
+6. **Non-overlapping Ranges**: Ensure timecode ranges don't overlap each other
+
 #### Translation
 
 ```ruby

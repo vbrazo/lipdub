@@ -276,6 +276,97 @@ module Lipdub
         post("/v1/shots/#{shot_id}/generate-multi-actor", params)
       end
 
+      # Validates timecode ranges for selective lip-dubbing
+      # @param ranges [Array<Array>] Array of [start, end] timecode pairs
+      # @param video_duration [Numeric] Total video duration in seconds (optional)
+      # @return [Boolean] true if valid
+      # @raise [ArgumentError] if ranges are invalid
+      def validate_timecode_ranges(ranges, video_duration: nil)
+        return true if ranges.nil? || ranges.empty?
+
+        unless ranges.is_a?(Array)
+          raise ArgumentError, "timecode_ranges must be an array"
+        end
+
+        ranges.each_with_index do |range, index|
+          unless range.is_a?(Array) && range.length == 2
+            raise ArgumentError, "Each timecode range must be an array of [start, end] at index #{index}"
+          end
+
+          start_time, end_time = range
+          start_seconds = parse_timecode_to_seconds(start_time)
+          end_seconds = parse_timecode_to_seconds(end_time)
+
+          if start_seconds >= end_seconds
+            raise ArgumentError, "Start time must be before end time in range #{index}: #{range}"
+          end
+
+          if video_duration && end_seconds > video_duration
+            raise ArgumentError, "End time #{end_time} exceeds video duration #{video_duration} in range #{index}"
+          end
+        end
+
+        # Check for overlapping ranges
+        sorted_ranges = ranges.map { |r| [parse_timecode_to_seconds(r[0]), parse_timecode_to_seconds(r[1])] }
+                             .sort_by(&:first)
+        
+        sorted_ranges.each_cons(2) do |(prev_start, prev_end), (curr_start, curr_end)|
+          if curr_start < prev_end
+            raise ArgumentError, "Overlapping timecode ranges detected: [#{prev_start}, #{prev_end}] and [#{curr_start}, #{curr_end}]"
+          end
+        end
+
+        true
+      end
+
+      # Converts timecode to seconds
+      # @param timecode [String, Numeric] Either numeric seconds or SMPTE format "HH:MM:SS:FF"
+      # @param fps [Integer] Frames per second for SMPTE conversion (default: 30)
+      # @return [Float] Time in seconds
+      def parse_timecode_to_seconds(timecode, fps: 30)
+        case timecode
+        when Numeric
+          timecode.to_f
+        when String
+          if timecode.match?(/^\d{2}:\d{2}:\d{2}:\d{2}$/)
+            # SMPTE format: HH:MM:SS:FF
+            hours, minutes, seconds, frames = timecode.split(':').map(&:to_i)
+            hours * 3600 + minutes * 60 + seconds + frames.to_f / fps
+          else
+            # Try parsing as float string
+            timecode.to_f
+          end
+        else
+          raise ArgumentError, "Invalid timecode format: #{timecode}. Use numeric seconds or SMPTE format (HH:MM:SS:FF)"
+        end
+      end
+
+      # Adds frame buffer to timecode ranges for seamless blending
+      # @param ranges [Array<Array>] Array of [start, end] timecode pairs
+      # @param buffer_frames [Integer] Number of frames to add as buffer (default: 10)
+      # @param fps [Integer] Frames per second (default: 30)
+      # @param video_duration [Numeric] Total video duration to clamp end times (optional)
+      # @return [Array<Array>] Buffered timecode ranges
+      def add_frame_buffer(ranges, buffer_frames: 10, fps: 30, video_duration: nil)
+        return ranges if ranges.nil? || ranges.empty?
+        
+        buffer_seconds = buffer_frames.to_f / fps
+        
+        ranges.map do |start_time, end_time|
+          start_seconds = parse_timecode_to_seconds(start_time, fps: fps)
+          end_seconds = parse_timecode_to_seconds(end_time, fps: fps)
+          
+          buffered_start = [start_seconds - buffer_seconds, 0].max
+          buffered_end = end_seconds + buffer_seconds
+          
+          if video_duration
+            buffered_end = [buffered_end, video_duration].min
+          end
+          
+          [buffered_start, buffered_end]
+        end
+      end
+
       private
 
       def validate_pagination_params!(page, per_page)
