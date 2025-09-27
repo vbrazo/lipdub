@@ -6,6 +6,34 @@ A comprehensive Ruby client library for the [Lipdub.ai API](https://lipdub.ai), 
 [![Build Status](https://github.com/upriser/lipdub-ruby/workflows/CI/badge.svg)](https://github.com/upriser/lipdub-ruby/actions)
 [![Security](https://img.shields.io/badge/security-bundler--audit-blue.svg)](https://github.com/rubysec/bundler-audit)
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Quick Start](#quick-start)
+- [API Reference](#api-reference)
+  - [Videos](#videos)
+  - [Audios](#audios)
+  - [Shots](#shots)
+  - [Projects](#projects)
+- [Usage Examples](#usage-examples)
+  - [Video Upload](#video-upload)
+  - [Audio Upload](#audio-upload)
+  - [Shot Management](#shot-management)
+  - [Shot Generation](#shot-generation)
+  - [Project Management](#project-management)
+- [Complete Workflow Examples](#complete-workflow-examples)
+  - [Basic Lip-dubbing Workflow](#basic-lip-dubbing-workflow)
+  - [Selective Lip-dubbing Workflow](#selective-lip-dubbing-workflow)
+- [Supported File Formats](#supported-file-formats)
+- [Error Handling](#error-handling)
+- [Rate Limits and Best Practices](#rate-limits-and-best-practices)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Features
 
 - **Video Upload**: Upload and process videos for lip-dubbing
@@ -53,7 +81,173 @@ config.api_key = "your_api_key_here"
 client = Lipdub::Client.new(config)
 ```
 
-## Usage
+## Quick Start
+
+Here's a minimal example to get you started with lip-dubbing:
+
+```ruby
+require 'lipdub'
+
+# Configure the client
+Lipdub.configure do |config|
+  config.api_key = "your_api_key_here"
+end
+
+client = Lipdub.client
+
+# Upload video and audio, then generate lip-dubbed video
+video_response = client.videos.upload_complete("input/video.mp4")
+shot_id = video_response.dig("data", "shot_id")
+
+audio_response = client.audios.upload_complete("input/audio.mp3")
+audio_id = audio_response.dig("data", "audio_id")
+
+# Generate and download the result
+result = client.shots.generate_and_wait(
+  shot_id: shot_id,
+  audio_id: audio_id,
+  output_filename: "dubbed_video.mp4"
+)
+
+generate_id = result.dig("data", "generate_id")
+client.shots.download_file(shot_id, generate_id, "output/result.mp4")
+```
+
+## API Reference
+
+The Lipdub Ruby client provides four main resource classes for interacting with the API:
+
+### Videos
+
+The Videos resource handles video file uploads and processing.
+
+#### Methods
+
+| Method | Description | Parameters | Returns |
+|--------|-------------|------------|---------|
+| `upload(size_bytes:, file_name:, content_type:, video_source_url: nil)` | Initiate video upload process | `size_bytes` (Integer), `file_name` (String), `content_type` (String), `video_source_url` (String, optional) | Hash with `video_id`, `upload_url`, `success_url`, `failure_url` |
+| `upload_file(upload_url, file_content, content_type)` | Upload video file to provided URL | `upload_url` (String), `file_content` (String/IO), `content_type` (String) | Hash |
+| `upload_complete(file_path, content_type: nil)` | Complete upload workflow from file path | `file_path` (String), `content_type` (String, optional) | Hash with `shot_id` and `asset_type` |
+| `success(video_id)` | Mark video upload as successful | `video_id` (String) | Hash with `shot_id` and `asset_type` |
+| `failure(video_id)` | Mark video upload as failed | `video_id` (String) | Hash |
+| `status(video_id)` | Get video processing status | `video_id` (String) | Hash with status information |
+
+#### Endpoints
+
+- `POST /v1/video` - Initiate video upload
+- `POST /v1/video/success/{video_id}` - Mark upload successful
+- `POST /v1/video/failure/{video_id}` - Mark upload failed
+- `GET /v1/video/status/{video_id}` - Get processing status
+
+### Audios
+
+The Audios resource handles audio file uploads and management.
+
+#### Methods
+
+| Method | Description | Parameters | Returns |
+|--------|-------------|------------|---------|
+| `upload(size_bytes:, file_name:, content_type:, audio_source_url: nil)` | Initiate audio upload process | `size_bytes` (Integer, 1-104857600), `file_name` (String), `content_type` (String), `audio_source_url` (String, optional) | Hash with `audio_id`, `upload_url`, `success_url`, `failure_url` |
+| `upload_file(upload_url, file_content, content_type)` | Upload audio file to provided URL | `upload_url` (String), `file_content` (String/IO), `content_type` (String) | Hash |
+| `upload_complete(file_path, content_type: nil)` | Complete upload workflow from file path | `file_path` (String), `content_type` (String, optional) | Hash with upload result |
+| `success(audio_id)` | Mark audio upload as successful | `audio_id` (String) | Hash |
+| `failure(audio_id)` | Mark audio upload as failed | `audio_id` (String) | Hash |
+| `status(audio_id)` | Get audio processing status | `audio_id` (String) | Hash with status information |
+| `list(page: 1, page_size: 10)` | List all audio files | `page` (Integer), `page_size` (Integer) | Hash with audio list and pagination |
+
+#### Endpoints
+
+- `POST /v1/audio` - Initiate audio upload
+- `POST /v1/audio/success/{audio_id}` - Mark upload successful
+- `POST /v1/audio/failure/{audio_id}` - Mark upload failed
+- `GET /v1/audio/status/{audio_id}` - Get processing status
+- `GET /v1/audio` - List audio files
+
+#### Supported Audio Formats
+
+- `audio/mpeg` (MP3)
+- `audio/wav` (WAV)
+- `audio/mp4` (MP4/M4A)
+
+### Shots
+
+The Shots resource handles lip-dubbing generation, translation, and shot management.
+
+#### Methods
+
+| Method | Description | Parameters | Returns |
+|--------|-------------|------------|---------|
+| `list(page: 1, per_page: 20)` | List available shots | `page` (Integer), `per_page` (Integer, max 100) | Hash with shots list and count |
+| `status(shot_id)` | Get shot processing status | `shot_id` (String/Integer) | Hash with status information |
+| `generate(shot_id:, audio_id:, output_filename:, **options)` | Generate lip-dubbed video | See generation options below | Hash with `generate_id` |
+| `generation_status(shot_id, generate_id)` | Get generation progress | `shot_id` (String/Integer), `generate_id` (String) | Hash with progress and status |
+| `download(shot_id, generate_id)` | Get download URL for generated video | `shot_id` (String/Integer), `generate_id` (String) | Hash with `download_url` |
+| `download_file(shot_id, generate_id, file_path)` | Download generated video to local path | `shot_id` (String/Integer), `generate_id` (String), `file_path` (String) | String (file path) |
+| `generate_and_wait(shot_id:, audio_id:, output_filename:, **options)` | Generate and wait for completion | Same as generate + `polling_interval` (Integer), `max_wait_time` (Integer) | Hash with final status |
+| `actors(shot_id)` | Get actors for a shot | `shot_id` (String/Integer) | Hash with actors information |
+| `translate(shot_id:, source_language:, target_language:, full_resolution: nil)` | Translate a shot | `shot_id` (String/Integer), `source_language` (String), `target_language` (String), `full_resolution` (Boolean, optional) | Hash with translation details |
+| `generate_multi_actor(shot_id:, **params)` | Generate multi-actor lip-dub | `shot_id` (String/Integer), `params` (Hash) | Hash with generation details |
+
+#### Generation Options
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `shot_id` | String/Integer | **Required.** Unique identifier of the shot | - |
+| `audio_id` | String | **Required.** Unique identifier of the audio file | - |
+| `output_filename` | String | **Required.** Name for the output file | - |
+| `language` | String | Language specification (ISO 639-1) | `nil` |
+| `start_frame` | Integer | Frame number to start lip-sync from | `0` |
+| `loop_video` | Boolean | Whether to loop video during rendering | `false` |
+| `full_resolution` | Boolean | Whether to use full resolution | `true` |
+| `callback_url` | String | HTTPS URL for completion callback | `nil` |
+| `timecode_ranges` | Array | List of `[start, end]` timecode pairs for selective lip-dubbing | `nil` |
+
+#### Timecode Ranges for Selective Lip-dubbing
+
+Timecode ranges allow you to lip-dub only specific parts of a video:
+
+```ruby
+# Using seconds (float)
+timecode_ranges: [[2.5, 4.2], [10.0, 12.5]]
+
+# Using SMPTE format (HH:MM:SS:FF)
+timecode_ranges: [["00:00:02:15", "00:00:04:06"], ["00:00:10:00", "00:00:12:15"]]
+```
+
+#### Helper Methods
+
+| Method | Description | Parameters | Returns |
+|--------|-------------|------------|---------|
+| `validate_timecode_ranges(ranges, video_duration: nil)` | Validate timecode ranges | `ranges` (Array), `video_duration` (Numeric, optional) | Boolean or raises ArgumentError |
+| `add_frame_buffer(ranges, buffer_frames: 10, fps: 30, video_duration: nil)` | Add frame buffer to ranges | `ranges` (Array), `buffer_frames` (Integer), `fps` (Integer), `video_duration` (Numeric, optional) | Array of buffered ranges |
+| `parse_timecode_to_seconds(timecode, fps: 30)` | Convert timecode to seconds | `timecode` (String/Numeric), `fps` (Integer) | Float |
+
+#### Endpoints
+
+- `GET /v1/shots` - List shots
+- `GET /v1/shots/{shot_id}/status` - Get shot status
+- `POST /v1/shots/{shot_id}/generate` - Generate lip-dubbed video
+- `GET /v1/shots/{shot_id}/generate/{generate_id}` - Get generation status
+- `GET /v1/shots/{shot_id}/generate/{generate_id}/download` - Get download URL
+- `GET /v1/shots/{shot_id}/actors` - Get shot actors
+- `POST /v1/shots/{shot_id}/translate` - Translate shot
+- `POST /v1/shots/{shot_id}/generate-multi-actor` - Multi-actor generation
+
+### Projects
+
+The Projects resource handles project management and listing.
+
+#### Methods
+
+| Method | Description | Parameters | Returns |
+|--------|-------------|------------|---------|
+| `list(page: 1, per_page: 20)` | List all projects | `page` (Integer), `per_page` (Integer, max 100) | Hash with projects list and count |
+
+#### Endpoints
+
+- `GET /v1/projects` - List projects
+
+## Usage Examples
 
 ### Video Upload
 
@@ -527,16 +721,23 @@ end
 ## Supported File Formats
 
 ### Video Formats
-- MP4 (recommended: 1080p HD, 23.976 fps, H.264 codec)
-- MOV
-- AVI
-- WebM
-- MKV
+- **MP4** (recommended: 1080p HD, 23.976 fps, H.264 codec) - `video/mp4`
+- **MOV** (QuickTime) - `video/quicktime`
+- **AVI** (Audio Video Interleave) - `video/x-msvideo`
+- **WebM** (Web Media) - `video/webm`
+- **MKV** (Matroska Video) - `video/x-matroska`
 
 ### Audio Formats
-- MP3 (audio/mpeg)
-- WAV (audio/wav)
-- MP4/M4A (audio/mp4)
+- **MP3** (MPEG Audio Layer III) - `audio/mpeg` (1 byte to 100MB)
+- **WAV** (Waveform Audio File Format) - `audio/wav` (1 byte to 100MB)
+- **MP4/M4A** (MPEG-4 Audio) - `audio/mp4` (1 byte to 100MB)
+
+### Recommendations
+- **Video**: Use MP4 with H.264 codec for best compatibility and processing speed
+- **Audio**: Use MP3 or WAV for optimal lip-sync results
+- **Resolution**: 1080p HD recommended for best quality output
+- **Frame Rate**: 23.976 fps or 30 fps for smooth lip-sync
+- **Audio Quality**: 44.1kHz sample rate, 16-bit depth minimum
 
 ## Error Handling
 
@@ -576,6 +777,121 @@ rescue Lipdub::ConfigurationError => e
   puts "Configuration error: #{e.message}"
 end
 ```
+
+## Rate Limits and Best Practices
+
+### Rate Limits
+The Lipdub API implements rate limiting to ensure fair usage:
+- **Upload endpoints**: 10 requests per minute
+- **Generation endpoints**: 5 requests per minute  
+- **Status/List endpoints**: 100 requests per minute
+
+### Best Practices
+
+#### Performance Optimization
+- **Batch operations**: Upload multiple files before starting generation
+- **Polling intervals**: Use appropriate intervals (10-30 seconds) when polling for status
+- **File optimization**: Compress videos and normalize audio before upload
+- **Concurrent uploads**: Upload video and audio files in parallel when possible
+
+#### Error Handling
+- **Retry logic**: Implement exponential backoff for transient errors
+- **Validation**: Validate file formats and sizes before upload
+- **Monitoring**: Log API responses for debugging and monitoring
+- **Graceful degradation**: Handle API failures gracefully in production
+
+#### Security
+- **API key protection**: Store API keys securely (environment variables, secrets management)
+- **HTTPS only**: All API communications use HTTPS
+- **File validation**: Validate uploaded files on your end before sending to API
+- **Webhook security**: Verify webhook signatures if using callback URLs
+
+#### Resource Management
+- **Cleanup**: Remove temporary files after processing
+- **Storage**: Monitor storage usage for large video files
+- **Timeouts**: Set appropriate timeouts for long-running operations
+- **Memory**: Stream large files instead of loading entirely into memory
+
+## Troubleshooting
+
+### Common Issues
+
+#### Upload Failures
+```ruby
+# Issue: File upload fails with timeout
+# Solution: Increase timeout settings
+Lipdub.configure do |config|
+  config.timeout = 120        # 2 minutes for large files
+  config.open_timeout = 30    # 30 seconds to establish connection
+end
+```
+
+#### Generation Errors
+```ruby
+# Issue: Generation fails with validation error
+# Solution: Validate inputs before generation
+begin
+  # Ensure audio duration matches video duration
+  client.shots.validate_timecode_ranges(ranges, video_duration: 30.0)
+  
+  result = client.shots.generate(
+    shot_id: shot_id,
+    audio_id: audio_id,
+    output_filename: "output.mp4"
+  )
+rescue Lipdub::ValidationError => e
+  puts "Validation failed: #{e.message}"
+  # Handle validation error
+end
+```
+
+#### Network Issues
+```ruby
+# Issue: Connection timeouts or failures
+# Solution: Implement retry logic with exponential backoff
+def upload_with_retry(file_path, max_retries: 3)
+  retries = 0
+  begin
+    client.videos.upload_complete(file_path)
+  rescue Lipdub::TimeoutError, Lipdub::ConnectionError => e
+    retries += 1
+    if retries <= max_retries
+      sleep(2 ** retries) # Exponential backoff
+      retry
+    else
+      raise e
+    end
+  end
+end
+```
+
+### Debug Mode
+
+Enable debug logging to troubleshoot issues:
+
+```ruby
+# Enable debug logging (if supported by your HTTP client)
+Lipdub.configure do |config|
+  config.api_key = "your_api_key"
+  config.debug = true  # Enable debug mode
+end
+
+# Or use a custom logger
+require 'logger'
+logger = Logger.new(STDOUT)
+logger.level = Logger::DEBUG
+
+# Log API requests and responses
+client = Lipdub.client
+# Add logging middleware to your HTTP client if needed
+```
+
+### Getting Help
+
+- **Documentation**: Check this README and inline code documentation
+- **API Status**: Monitor [Lipdub API status page](https://status.lipdub.ai) for service issues
+- **Support**: Contact support@lipdub.ai for API-related issues
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/upriser/lipdub-ruby/issues)
 
 ## Development
 
