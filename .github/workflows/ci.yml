@@ -21,18 +21,14 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
-        
-    - name: Install dependencies
-      run: bundle install
       
     - name: Run tests
       run: bundle exec rspec
       
     - name: Security audit
       run: |
-        gem install bundler-audit
-        bundle audit --update
-        bundle audit
+        bundle exec bundle-audit --update
+        bundle exec bundle-audit
 
   coverage:
     runs-on: ubuntu-latest
@@ -46,12 +42,8 @@ jobs:
         ruby-version: '3.3'
         bundler-cache: true
         
-    - name: Install dependencies
-      run: bundle install
-      
     - name: Run tests with coverage
-      run: |
-        bundle exec rspec --format documentation
+      run: bundle exec rspec --format documentation
         
     - name: Upload coverage reports
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'

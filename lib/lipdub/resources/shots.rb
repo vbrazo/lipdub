@@ -276,6 +276,8 @@ module Lipdub
         post("/v1/shots/#{shot_id}/generate-multi-actor", params)
       end
 
+      # Helper method to validate timecode ranges
+
       # Validates timecode ranges for selective lip-dubbing
       # @param ranges [Array<Array>] Array of [start, end] timecode pairs
       # @param video_duration [Numeric] Total video duration in seconds (optional)
@@ -319,28 +321,6 @@ module Lipdub
         true
       end
 
-      # Converts timecode to seconds
-      # @param timecode [String, Numeric] Either numeric seconds or SMPTE format "HH:MM:SS:FF"
-      # @param fps [Integer] Frames per second for SMPTE conversion (default: 30)
-      # @return [Float] Time in seconds
-      def parse_timecode_to_seconds(timecode, fps: 30)
-        case timecode
-        when Numeric
-          timecode.to_f
-        when String
-          if timecode.match?(/^\d{2}:\d{2}:\d{2}:\d{2}$/)
-            # SMPTE format: HH:MM:SS:FF
-            hours, minutes, seconds, frames = timecode.split(':').map(&:to_i)
-            hours * 3600 + minutes * 60 + seconds + frames.to_f / fps
-          else
-            # Try parsing as float string
-            timecode.to_f
-          end
-        else
-          raise ArgumentError, "Invalid timecode format: #{timecode}. Use numeric seconds or SMPTE format (HH:MM:SS:FF)"
-        end
-      end
-
       # Adds frame buffer to timecode ranges for seamless blending
       # @param ranges [Array<Array>] Array of [start, end] timecode pairs
       # @param buffer_frames [Integer] Number of frames to add as buffer (default: 10)
@@ -364,6 +344,28 @@ module Lipdub
           end
           
           [buffered_start, buffered_end]
+        end
+      end
+
+      # Converts timecode to seconds
+      # @param timecode [String, Numeric] Either numeric seconds or SMPTE format "HH:MM:SS:FF"
+      # @param fps [Integer] Frames per second for SMPTE conversion (default: 30)
+      # @return [Float] Time in seconds
+      def parse_timecode_to_seconds(timecode, fps: 30)
+        case timecode
+        when Numeric
+          timecode.to_f
+        when String
+          if timecode.match?(/^\d{2}:\d{2}:\d{2}:\d{2}$/)
+            # SMPTE format: HH:MM:SS:FF
+            hours, minutes, seconds, frames = timecode.split(':').map(&:to_i)
+            hours * 3600 + minutes * 60 + seconds + frames.to_f / fps
+          else
+            # Try parsing as float string
+            timecode.to_f
+          end
+        else
+          raise ArgumentError, "Invalid timecode format: #{timecode}. Use numeric seconds or SMPTE format (HH:MM:SS:FF)"
         end
       end
 
