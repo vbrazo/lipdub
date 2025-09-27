@@ -1,0 +1,48 @@
+# Bundler / RubyGems
+/.bundle/
+/vendor/bundle/
+/pkg/
+/coverage/
+/spec/reports/
+/tmp/
+
+# Installed gems (don’t commit your .gem files)
+*.gem
+
+# Byebug / Pry history
+.byebug_history
+.pry_history
+
+# RSpec / Minitest metadata
+.rspec_status
+
+# Documentation artifacts
+/doc/
+/.yardoc/
+/yardoc/
+/.rdoc/
+/rdoc/
+/.yardoc/*
+
+# Local environment variables
+.env
+.env.*
+
+# Logs
+/log/
+/*.log
+
+# Editor / OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# RubyMine / JetBrains
+.idea/
+
+# VSCode
+.vscode/
+
+# Test coverage tools
+coverage/
