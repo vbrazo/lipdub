@@ -3,7 +3,7 @@
 A comprehensive Ruby client library for the [Lipdub.ai API](https://lipdub.ai), providing easy access to AI-powered lip-dubbing functionality.
 
 [![Gem Version](https://badge.fury.io/rb/lipdub.svg)](https://badge.fury.io/rb/lipdub)
-[![Build Status](https://github.com/upriser/lipdub-ruby/workflows/CI/badge.svg)](https://github.com/upriser/lipdub-ruby/actions)
+[![Build Status](https://github.com/vbrazo/lipdub/workflows/CI/badge.svg)](https://github.com/upriser/lipdub-ruby/actions)
 [![Security](https://img.shields.io/badge/security-bundler--audit-blue.svg)](https://github.com/rubysec/bundler-audit)
 
 ## Table of Contents
